@@ -2,6 +2,10 @@
   "name": "skincare",
   "version": "0.0.1",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
@@ -15,7 +19,6 @@
     "turbo": "^2.9.18",
     "typescript": "~6"
   },
-  "packageManager": "pnpm@10.33.4",
   "engines": {
     "node": ">=20"
   }
