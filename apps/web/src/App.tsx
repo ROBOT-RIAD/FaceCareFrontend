@@ -4,7 +4,7 @@ import { Footer } from "@/components/layout/Footer.tsx"
 
 export function App() {
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-1">
         <Outlet />
