@@ -16,7 +16,6 @@ export function Footer({
       className={`w-full bg-[#2e3033] text-gray-200 pt-12 pb-8 px-4 sm:px-6 lg:px-8 transition-colors ${className}`}
     >
       <div className="max-w-6xl mx-auto flex flex-col gap-10">
-        {/* Top Navigation Links */}
         <nav
           aria-label="Footer Navigation"
           className="flex flex-wrap items-center justify-center gap-8 sm:gap-14 md:gap-20 text-sm font-medium tracking-wide text-gray-100"
