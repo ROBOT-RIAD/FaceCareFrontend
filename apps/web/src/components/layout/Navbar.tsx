@@ -1,7 +1,6 @@
-import * as React from "react"
-import { Link, NavLink, useLocation } from "react-router"
+import { Link, NavLink } from "react-router"
 import {
-  MessageSquare,
+  Languages,
   MapPin,
   Mail,
   Info,
@@ -16,16 +15,10 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Home", href: "/" },
   { label: "Products", href: "/products" },
-  { label: "About Us", href: "/about" },
+  { label: "Skin Intelligence", href: "/skin-intelligence" },
 ]
 
 export function Navbar() {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
-  const location = useLocation()
-
-  React.useEffect(() => {
-    setIsMobileMenuOpen(false)
-  }, [location.pathname])
 
   return (
     <header
@@ -139,10 +132,20 @@ export function Navbar() {
 
         {/* Action icons */}
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <Link to="/chat" aria-label="Chat" style={iconLinkStyle}>
-            <MessageSquare size={18} strokeWidth={1.5} />
-          </Link>
-          <Link to="/about" aria-label="Info" style={iconLinkStyle}>
+          <button
+            type="button"
+            aria-label="Toggle Language"
+            style={{
+              ...iconLinkStyle,
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+            }}
+          >
+            <Languages size={18} strokeWidth={1.5} />
+          </button>
+          <Link to="/skin-intelligence" aria-label="Skin Intelligence Info" style={iconLinkStyle}>
             <Info size={18} strokeWidth={1.5} />
           </Link>
           <Link to="/contact" aria-label="Mail" style={iconLinkStyle}>

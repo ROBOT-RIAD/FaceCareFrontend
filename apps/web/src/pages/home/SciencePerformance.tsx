@@ -1,5 +1,3 @@
-import * as React from "react"
-
 // Dummy portrait URL for clinical face study - user can update later
 const DUMMY_FACE_PORTRAIT =
   "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=700&q=80"

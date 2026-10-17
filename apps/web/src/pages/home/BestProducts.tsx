@@ -1,4 +1,5 @@
 import * as React from "react"
+import { ArrowLeft, ArrowRight } from "lucide-react"
 import serumImg from "@/assets/home/product_serum.jpg"
 import maskImg from "@/assets/home/product_sleeping_mask.jpg"
 import lipOilImg from "@/assets/home/product_lip_oil.jpg"
@@ -79,7 +80,7 @@ export function BestProducts() {
       </h2>
 
       {/* Carousel wrapper */}
-      <div style={{ position: "relative", maxWidth: 1100, margin: "0 auto", padding: "0 64px" }}>
+      <div style={{ position: "relative", maxWidth: 1140, margin: "0 auto", padding: "0 32px" }}>
         {/* Left Arrow */}
         <button
           onClick={prev}
@@ -87,33 +88,37 @@ export function BestProducts() {
           aria-label="Previous"
           style={{
             position: "absolute",
-            left: 8,
-            top: "40%",
+            left: 10,
+            top: 170,
             transform: "translateY(-50%)",
-            zIndex: 2,
-            width: 40,
-            height: 40,
+            zIndex: 10,
+            width: 44,
+            height: 44,
             borderRadius: "50%",
-            border: "1px solid #ccc",
+            border: "1px solid #e0deda",
             background: "#fff",
             cursor: current === 0 ? "default" : "pointer",
             opacity: current === 0 ? 0.35 : 1,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            transition: "background 0.15s, opacity 0.15s",
-            boxShadow: "0 1px 6px rgba(0,0,0,0.08)",
+            transition: "background 0.15s, opacity 0.15s, transform 0.12s",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
           }}
           onMouseEnter={(e) => {
-            if (current !== 0) (e.currentTarget as HTMLElement).style.background = "#f5f5f5"
+            if (current !== 0) {
+              const el = e.currentTarget as HTMLElement
+              el.style.background = "#f7f7f7"
+              el.style.transform = "translateY(-50%) scale(1.05)"
+            }
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "#fff"
+            const el = e.currentTarget as HTMLElement
+            el.style.background = "#fff"
+            el.style.transform = "translateY(-50%) scale(1)"
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
+          <ArrowLeft size={18} strokeWidth={2} color="#111" />
         </button>
 
         {/* Cards track */}
@@ -131,40 +136,46 @@ export function BestProducts() {
                 key={product.id}
                 style={{
                   flex: `0 0 calc((100% - ${(visible - 1) * 24}px) / ${visible})`,
-                  background: "#f9f8f6",
+                  background: "transparent",
                   display: "flex",
                   flexDirection: "column",
-                  border: "1px solid #ececec",
                 }}
               >
-                {/* Badge */}
-                <div style={{ padding: "14px 14px 0" }}>
+                {/* Product Image Box with soft background and floating badge */}
+                <div
+                  style={{
+                    position: "relative",
+                    width: "100%",
+                    aspectRatio: "1/1",
+                    background: "#f7f7f6",
+                    overflow: "hidden",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 16,
+                  }}
+                >
+                  {/* Badge */}
                   <span
                     style={{
+                      position: "absolute",
+                      top: 14,
+                      left: 14,
+                      zIndex: 2,
                       display: "inline-block",
-                      background: "#222",
+                      background: "#2d3134",
                       color: "#fff",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      letterSpacing: "0.08em",
-                      padding: "4px 12px",
+                      fontSize: 12,
+                      fontWeight: 500,
+                      letterSpacing: "0.02em",
+                      padding: "5px 16px",
                       borderRadius: 20,
-                      fontFamily: "'Inter', sans-serif",
+                      fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
                     }}
                   >
                     {product.badge}
                   </span>
-                </div>
 
-                {/* Product Image */}
-                <div
-                  style={{
-                    width: "100%",
-                    aspectRatio: "3/4",
-                    overflow: "hidden",
-                    background: "#f0eeeb",
-                  }}
-                >
                   <img
                     src={product.image}
                     alt={product.name}
@@ -174,10 +185,10 @@ export function BestProducts() {
                       objectFit: "cover",
                       objectPosition: "center",
                       display: "block",
-                      transition: "transform 0.4s ease",
+                      transition: "transform 0.35s ease",
                     }}
                     onMouseEnter={(e) =>
-                      ((e.currentTarget as HTMLElement).style.transform = "scale(1.04)")
+                      ((e.currentTarget as HTMLElement).style.transform = "scale(1.03)")
                     }
                     onMouseLeave={(e) =>
                       ((e.currentTarget as HTMLElement).style.transform = "scale(1)")
@@ -185,24 +196,24 @@ export function BestProducts() {
                   />
                 </div>
 
-                {/* Info */}
+                {/* Description & Skin Type */}
                 <div
                   style={{
-                    padding: "16px 16px 0",
                     display: "flex",
                     flexDirection: "column",
                     gap: 6,
-                    flex: 1,
+                    marginBottom: 20,
+                    minHeight: 68,
                   }}
                 >
                   <p
                     style={{
                       margin: 0,
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 400,
-                      color: "#333",
-                      fontFamily: "'Inter', sans-serif",
-                      lineHeight: 1.5,
+                      color: "#1a1a1a",
+                      fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
+                      lineHeight: 1.45,
                     }}
                   >
                     {product.description}
@@ -210,9 +221,9 @@ export function BestProducts() {
                   <p
                     style={{
                       margin: 0,
-                      fontSize: 11,
-                      color: "#888",
-                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 12,
+                      color: "#666666",
+                      fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
                     }}
                   >
                     {product.skinType}
@@ -220,7 +231,7 @@ export function BestProducts() {
                 </div>
 
                 {/* View Details */}
-                <div style={{ padding: "16px" }}>
+                <div>
                   <a
                     href={`/products/${product.id}`}
                     style={{
@@ -228,28 +239,26 @@ export function BestProducts() {
                       width: "100%",
                       textAlign: "center",
                       padding: "11px 0",
-                      border: "1px solid #ccc",
+                      border: "1px solid #1a1a1a",
                       background: "#fff",
-                      color: "#222",
+                      color: "#1a1a1a",
                       fontSize: 13,
                       fontWeight: 500,
-                      letterSpacing: "0.04em",
+                      letterSpacing: "0.02em",
                       textDecoration: "none",
-                      fontFamily: "'Inter', sans-serif",
-                      transition: "background 0.15s, color 0.15s, border-color 0.15s",
+                      fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
+                      transition: "background 0.15s, color 0.15s",
                       boxSizing: "border-box",
                     }}
                     onMouseEnter={(e) => {
                       const el = e.currentTarget as HTMLElement
-                      el.style.background = "#222"
+                      el.style.background = "#1a1a1a"
                       el.style.color = "#fff"
-                      el.style.borderColor = "#222"
                     }}
                     onMouseLeave={(e) => {
                       const el = e.currentTarget as HTMLElement
                       el.style.background = "#fff"
-                      el.style.color = "#222"
-                      el.style.borderColor = "#ccc"
+                      el.style.color = "#1a1a1a"
                     }}
                   >
                     View Details
@@ -267,33 +276,37 @@ export function BestProducts() {
           aria-label="Next"
           style={{
             position: "absolute",
-            right: 8,
-            top: "40%",
+            right: 10,
+            top: 170,
             transform: "translateY(-50%)",
-            zIndex: 2,
-            width: 40,
-            height: 40,
+            zIndex: 10,
+            width: 44,
+            height: 44,
             borderRadius: "50%",
-            border: "1px solid #ccc",
+            border: "1px solid #e0deda",
             background: "#fff",
             cursor: current === maxIndex ? "default" : "pointer",
             opacity: current === maxIndex ? 0.35 : 1,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            transition: "background 0.15s, opacity 0.15s",
-            boxShadow: "0 1px 6px rgba(0,0,0,0.08)",
+            transition: "background 0.15s, opacity 0.15s, transform 0.12s",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
           }}
           onMouseEnter={(e) => {
-            if (current !== maxIndex) (e.currentTarget as HTMLElement).style.background = "#f5f5f5"
+            if (current !== maxIndex) {
+              const el = e.currentTarget as HTMLElement
+              el.style.background = "#f7f7f7"
+              el.style.transform = "translateY(-50%) scale(1.05)"
+            }
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "#fff"
+            const el = e.currentTarget as HTMLElement
+            el.style.background = "#fff"
+            el.style.transform = "translateY(-50%) scale(1)"
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
+          <ArrowRight size={18} strokeWidth={2} color="#111" />
         </button>
       </div>
     </section>

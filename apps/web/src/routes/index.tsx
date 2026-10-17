@@ -1,8 +1,8 @@
 import { App } from "@/App";
 import { createBrowserRouter } from "react-router";
 import Homepage from "@/pages/home/Homepage";
-
-
+import SkinIntelligencePage from "@/pages/skin-intelligence/SkinIntelligencePage";
+import ProductsPage from "@/pages/products/ProductsPage";
 
 export const router = createBrowserRouter([
     {
@@ -12,8 +12,19 @@ export const router = createBrowserRouter([
             {
                 Component: Homepage,
                 index: true,
-            }
-
+            },
+            {
+                Component: ProductsPage,
+                path: "products",
+            },
+            {
+                Component: SkinIntelligencePage,
+                path: "skin-intelligence",
+            },
+            {
+                Component: SkinIntelligencePage,
+                path: "about",
+            },
         ],
     },
     // {
