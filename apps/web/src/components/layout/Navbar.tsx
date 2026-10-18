@@ -13,11 +13,14 @@ import {
   Percent,
   Sparkles,
   MessageSquare,
+  LogOut,
 } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
 import { useTheme } from "@/components/theme-provider.tsx"
 import companyLogo from "@/assets/home/navbar/company_logo.png"
+import { AuthModal } from "@/components/modules/auth/AuthModal.tsx"
+import { useAuth } from "@/hooke/useAuth"
 
 interface NavItem {
   label: string
@@ -59,9 +62,17 @@ export function Navbar() {
   const [isScrolled, setIsScrolled] = React.useState(false)
   const [cartCount] = React.useState(2)
   const [wishlistCount] = React.useState(1)
+  const [isAuthModalOpen, setIsAuthModalOpen] = React.useState(false)
+  const [authModalMode, setAuthModalMode] = React.useState<"signup" | "login">("login")
+
+  const openAuthModal = (mode: "signup" | "login" = "login") => {
+    setAuthModalMode(mode)
+    setIsAuthModalOpen(true)
+  }
 
   const { theme, setTheme } = useTheme()
   const location = useLocation()
+  const { user, logout } = useAuth()
 
   // Track scroll position to add elevated style
   React.useEffect(() => {
@@ -87,7 +98,7 @@ export function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full transition-all duration-200">
+    <header className="sticky top-0 z-[100] w-full transition-all duration-200">
       {/* Top Announcement Bar */}
       <div className="bg-primary/95 text-primary-foreground px-4 py-1.5 text-xs font-medium tracking-wide">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
@@ -162,12 +173,11 @@ export function Navbar() {
                     key={item.href}
                     to={item.href}
                     className={({ isActive }) =>
-                      `relative inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full border transition-all duration-150 ${
-                        isActive
-                          ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                          : item.badge === "AI"
-                            ? "bg-primary/10 hover:bg-primary/15 text-primary border-primary/30 hover:border-primary/50 shadow-2xs"
-                            : "bg-muted/70 hover:bg-muted text-foreground border-border/80 hover:border-border"
+                      `relative inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full border transition-all duration-150 ${isActive
+                        ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                        : item.badge === "AI"
+                          ? "bg-primary/10 hover:bg-primary/15 text-primary border-primary/30 hover:border-primary/50 shadow-2xs"
+                          : "bg-muted/70 hover:bg-muted text-foreground border-border/80 hover:border-border"
                       }`
                     }
                   >
@@ -187,10 +197,9 @@ export function Navbar() {
                   key={item.href}
                   to={item.href}
                   className={({ isActive }) =>
-                    `relative px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-150 ${
-                      isActive
-                        ? "text-primary font-semibold bg-primary/10"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    `relative px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-150 ${isActive
+                      ? "text-primary font-semibold bg-primary/10"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                     }`
                   }
                 >
@@ -236,28 +245,63 @@ export function Navbar() {
               <Moon className="absolute size-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </Button>
 
-            {/* User Account / Profile */}
-            <Link to="/login">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-full text-muted-foreground hover:text-foreground"
-                aria-label="Account"
-              >
-                <User className="size-5" />
-              </Button>
-            </Link>
+            {/* User Account / Profile / Join Us */}
+            {user ? (
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/profile"
+                  className="flex items-center gap-2 py-1 px-2.5 rounded-full bg-muted/60 hover:bg-muted text-xs font-medium text-foreground transition-colors"
+                >
+                  <div className="size-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-[10px] uppercase">
+                    {user.name?.[0] || user.fullName?.[0] || user.email?.[0] || "U"}
+                  </div>
+                  <span className="hidden sm:inline max-w-[100px] truncate">
+                    {user.fullName || user.name || user.email?.split("@")?.[0] || "User"}
+                  </span>
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={logout}
+                  className="rounded-full text-muted-foreground hover:text-destructive size-8"
+                  title="Logout"
+                  aria-label="Logout"
+                >
+                  <LogOut className="size-4" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => openAuthModal("login")}
+                  className="rounded-full text-muted-foreground hover:text-foreground cursor-pointer"
+                  aria-label="Account"
+                >
+                  <User className="size-5" />
+                </Button>
+
+                <Button
+                  size="sm"
+                  onClick={() => openAuthModal("login")}
+                  className="rounded-full text-xs font-semibold px-4 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs transition-transform active:scale-95 cursor-pointer"
+                >
+                  Join Us
+                </Button>
+              </>
+            )}
 
             {/* Shopping Cart Button */}
             <Link to="/cart">
               <Button
-                variant="default"
+                variant="outline"
                 size="sm"
                 className="relative gap-1.5 rounded-full px-3 shadow-xs transition-transform active:scale-95"
               >
                 <ShoppingBag className="size-4" />
                 <span className="hidden sm:inline font-medium">Cart</span>
-                <span className="flex size-4 items-center justify-center rounded-full bg-primary-foreground text-[10px] font-bold text-primary">
+                <span className="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                   {cartCount}
                 </span>
               </Button>
@@ -283,12 +327,11 @@ export function Navbar() {
                     to={item.href}
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={({ isActive }) =>
-                      `flex items-center justify-between rounded-xl px-3 py-2.5 text-base font-medium transition-colors ${
-                        isActive
-                          ? "bg-primary/10 text-primary font-semibold"
-                          : item.isHighlight
-                            ? "bg-muted/50 text-foreground font-medium border border-border/40"
-                            : "text-foreground hover:bg-muted"
+                      `flex items-center justify-between rounded-xl px-3 py-2.5 text-base font-medium transition-colors ${isActive
+                        ? "bg-primary/10 text-primary font-semibold"
+                        : item.isHighlight
+                          ? "bg-muted/50 text-foreground font-medium border border-border/40"
+                          : "text-foreground hover:bg-muted"
                       }`
                     }
                   >
@@ -354,23 +397,66 @@ export function Navbar() {
                 </Button>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                <Link
-                  to="/login"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="w-full"
-                >
-                  <Button variant="outline" className="w-full rounded-xl gap-2">
-                    <User className="size-4" />
-                    Sign In
-                  </Button>
-                </Link>
+              <div className="flex flex-col gap-2 mt-1">
+                {user ? (
+                  <div className="flex flex-col gap-2 p-3 rounded-xl bg-muted/40 border border-border/60">
+                    <div className="flex items-center gap-2">
+                      <div className="size-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-xs uppercase">
+                        {user.name?.[0] || user.fullName?.[0] || user.email?.[0] || "U"}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-semibold truncate">
+                          {user.fullName || user.name || "User"}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground truncate">
+                          {user.email}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsMobileMenuOpen(false)
+                        logout()
+                      }}
+                      className="w-full text-destructive hover:text-destructive gap-1.5 text-xs"
+                    >
+                      <LogOut className="size-3.5" />
+                      Logout
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Button
+                      className="w-full rounded-xl gap-2 font-medium"
+                      onClick={() => {
+                        setIsMobileMenuOpen(false)
+                        openAuthModal("login")
+                      }}
+                    >
+                      <Sparkles className="size-4" />
+                      Join Us
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-xl gap-2"
+                      onClick={() => {
+                        setIsMobileMenuOpen(false)
+                        openAuthModal("login")
+                      }}
+                    >
+                      <User className="size-4" />
+                      Sign In
+                    </Button>
+                  </>
+                )}
                 <Link
                   to="/cart"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="w-full"
                 >
-                  <Button className="w-full rounded-xl gap-2">
+                  <Button variant="outline" className="w-full rounded-xl gap-2">
                     <ShoppingBag className="size-4" />
                     Cart ({cartCount})
                   </Button>
@@ -380,6 +466,13 @@ export function Navbar() {
           </div>
         </div>
       )}
+
+      {/* Auth Modal (Signup / Login) */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        initialMode={authModalMode}
+      />
     </header>
   )
 }
