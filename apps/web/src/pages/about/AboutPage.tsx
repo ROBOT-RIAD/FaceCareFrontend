@@ -1,6 +1,6 @@
 export default function AboutPage() {
   return (
-    <div className="py-12 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-6">
       <div className="space-y-2">
         <h1 className="text-3xl sm:text-4xl font-serif font-bold tracking-tight text-foreground">
           About Glowmi

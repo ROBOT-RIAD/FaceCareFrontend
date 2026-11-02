@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Check,
   Loader2,
+  Calendar,
 } from "lucide-react"
 import signupBg from "@/assets/signup/image.png"
 import { useAuth, formatErrorMessage } from "@/hooke/useAuth"
@@ -32,12 +33,24 @@ export function AuthModal({
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [fullName, setFullName] = useState("")
+  const [gender, setGender] = useState("female")
   const [contactNumber, setContactNumber] = useState("")
+  const [dateOfBirth, setDateOfBirth] = useState("")
   const [skinType, setSkinType] = useState("")
   const [skinTypeDropdownOpen, setSkinTypeDropdownOpen] = useState(false)
-  const [birthdayDay, setBirthdayDay] = useState("")
-  const [birthdayMonth, setBirthdayMonth] = useState("")
-  const [birthdayYear, setBirthdayYear] = useState("")
+
+  // Format date input as YYYY-MM-DD
+  const handleDateOfBirthChange = (val: string) => {
+    let formatted = val.replace(/[/.]/g, "-").replace(/[^\d-]/g, "")
+    if (!formatted.includes("-") && formatted.length > 4) {
+      if (formatted.length <= 6) {
+        formatted = `${formatted.slice(0, 4)}-${formatted.slice(4)}`
+      } else {
+        formatted = `${formatted.slice(0, 4)}-${formatted.slice(4, 6)}-${formatted.slice(6, 8)}`
+      }
+    }
+    setDateOfBirth(formatted.slice(0, 10))
+  }
 
   const [loginEmail, setLoginEmail] = useState("")
   const [loginPassword, setLoginPassword] = useState("")
@@ -49,16 +62,47 @@ export function AuthModal({
   const [authLoading, setAuthLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  const resetSignupForm = () => {
+    setEmail("")
+    setPassword("")
+    setShowPassword(false)
+    setFullName("")
+    setGender("female")
+    setContactNumber("")
+    setDateOfBirth("")
+    setSkinType("")
+    setSkinTypeDropdownOpen(false)
+  }
+
+  const resetLoginForm = () => {
+    setLoginEmail("")
+    setLoginPassword("")
+    setShowLoginPassword(false)
+  }
+
+  const resetAllForms = () => {
+    resetSignupForm()
+    resetLoginForm()
+    setErrorMessage(null)
+  }
+
+  const handleClose = () => {
+    resetAllForms()
+    onClose()
+  }
+
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Reset mode to initialMode when modal opens
+  // Reset mode when modal opens, and clear forms when modal closes
   useEffect(() => {
     if (isOpen) {
       setMode(initialMode)
       setSkinTypeDropdownOpen(false)
       setErrorMessage(null)
+    } else {
+      resetAllForms()
     }
   }, [isOpen, initialMode])
 
@@ -66,12 +110,12 @@ export function AuthModal({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
-        onClose()
+        handleClose()
       }
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   // Prevent background scrolling when modal is open
   useEffect(() => {
@@ -92,17 +136,35 @@ export function AuthModal({
     setErrorMessage(null)
     setAuthLoading(true)
     try {
-      await register({
-        email,
-        password,
-        fullName,
-        contactNumber,
-        skinType,
-        birthday:
-          birthdayDay || birthdayMonth || birthdayYear
-            ? `${birthdayDay}/${birthdayMonth}/${birthdayYear}`
-            : undefined,
-      })
+      if (dateOfBirth) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
+          setErrorMessage("Date of Birth must be in YYYY-MM-DD format (e.g. 2000-01-15).")
+          setAuthLoading(false)
+          return
+        }
+        const parsedDate = new Date(dateOfBirth)
+        if (isNaN(parsedDate.getTime())) {
+          setErrorMessage("Please enter a valid Date of Birth (YYYY-MM-DD).")
+          setAuthLoading(false)
+          return
+        }
+      }
+
+      const formData = new FormData()
+      formData.append("email", email)
+      formData.append("password", password)
+      formData.append("full_name", fullName)
+      formData.append("fullName", fullName)
+      formData.append("gender", gender)
+      formData.append("contact_number", contactNumber)
+      formData.append("contactNumber", contactNumber)
+      formData.append("date_of_birth", dateOfBirth)
+      formData.append("birthday", dateOfBirth)
+      formData.append("skin_type", skinType)
+      formData.append("skinType", skinType)
+
+      await register(formData)
+      resetAllForms()
       onClose()
     } catch (err: any) {
       setErrorMessage(
@@ -122,6 +184,7 @@ export function AuthModal({
         email: loginEmail,
         password: loginPassword,
       })
+      resetAllForms()
       onClose()
     } catch (err: any) {
       setErrorMessage(
@@ -135,7 +198,7 @@ export function AuthModal({
   return createPortal(
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-4 pt-20 sm:pt-16 bg-black/[0.08] animate-in fade-in duration-150"
-      onClick={onClose}
+      onClick={handleClose}
     >
       {/* Click propagation stop on modal container */}
       <div
@@ -158,7 +221,7 @@ export function AuthModal({
             {/* Top Right: Close Button */}
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="absolute top-6 right-6 size-8 rounded-full text-stone-400 hover:text-stone-700 flex items-center justify-center transition-colors cursor-pointer"
               aria-label="Close"
             >
@@ -272,7 +335,7 @@ export function AuthModal({
             {/* Top Right Close Button */}
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="absolute top-4 right-4 z-20 size-8 rounded-full text-stone-800 hover:text-stone-950 flex items-center justify-center transition-colors cursor-pointer bg-white/40 hover:bg-white/70"
               aria-label="Close"
             >
@@ -351,7 +414,7 @@ export function AuthModal({
                     </label>
                     <input
                       type="text"
-                      placeholder="Name"
+                      placeholder="Your Full Name"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       className="w-full rounded-full bg-white text-stone-900 px-4 py-1.5 text-xs sm:text-sm shadow-xs outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-stone-400"
@@ -359,18 +422,84 @@ export function AuthModal({
                     />
                   </div>
 
+                  {/* Gender */}
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <label className="text-stone-800 text-xs sm:text-sm font-medium w-28 shrink-0">
+                      Gender
+                    </label>
+                    <div className="flex items-center gap-2 w-full">
+                      {[
+                        { label: "Female", value: "female" },
+                        { label: "Male", value: "male" },
+                        { label: "Other", value: "other" },
+                      ].map((item) => (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() => setGender(item.value)}
+                          className={`flex-1 rounded-full py-1 text-xs font-medium transition-all cursor-pointer ${
+                            gender === item.value
+                              ? "bg-[#303336] text-white shadow-xs"
+                              : "bg-white/90 text-stone-700 hover:bg-white"
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Contact Number */}
                   <div className="flex items-center gap-2 sm:gap-3">
                     <label className="text-stone-800 text-xs sm:text-sm font-medium w-28 shrink-0">
-                      Contact Number
+                      Contact
                     </label>
                     <input
                       type="tel"
-                      placeholder="Contact number"
+                      placeholder="+8801700000000"
                       value={contactNumber}
                       onChange={(e) => setContactNumber(e.target.value)}
                       className="w-full rounded-full bg-white text-stone-900 px-4 py-1.5 text-xs sm:text-sm shadow-xs outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-stone-400"
                     />
+                  </div>
+
+                  {/* Date of Birth */}
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <label className="text-stone-800 text-xs sm:text-sm font-medium w-28 shrink-0">
+                      Date of Birth
+                    </label>
+                    <div className="relative w-full">
+                      <input
+                        type="text"
+                        placeholder="YYYY-MM-DD"
+                        value={dateOfBirth}
+                        onChange={(e) => handleDateOfBirthChange(e.target.value)}
+                        maxLength={10}
+                        className="w-full rounded-full bg-white text-stone-900 px-4 py-1.5 pr-9 text-xs sm:text-sm shadow-xs outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-stone-400"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 size-4 flex items-center justify-center">
+                        <Calendar className="size-3.5 text-stone-500 pointer-events-none" />
+                        <input
+                          type="date"
+                          max={new Date().toISOString().split("T")[0]}
+                          value={dateOfBirth}
+                          onChange={(e) => setDateOfBirth(e.target.value)}
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full [color-scheme:light]"
+                          title="Choose date from calendar"
+                          tabIndex={-1}
+                          onClick={(e) => {
+                            const target = e.currentTarget as HTMLInputElement
+                            if (target && "showPicker" in target) {
+                              try {
+                                target.showPicker()
+                              } catch {
+                                // fallback
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Skin Type */}
@@ -385,15 +514,15 @@ export function AuthModal({
                         className="w-full rounded-full bg-white text-stone-900 px-4 py-1.5 text-xs sm:text-sm shadow-xs flex items-center justify-between cursor-pointer outline-none focus:ring-1 focus:ring-stone-400"
                       >
                         <span className={skinType ? "text-stone-900 font-medium" : "text-stone-500"}>
-                          {skinType || "Select"}
+                          {skinType || "Select Skin Type"}
                         </span>
                         <ChevronDown className="size-3.5 text-stone-500" />
                       </button>
 
                       {/* Dropdown Menu (matching design) */}
                       {skinTypeDropdownOpen && (
-                        <div className="absolute right-0 top-full mt-1.5 z-30 w-44 rounded-xl bg-white/95 backdrop-blur-md shadow-xl border border-stone-200/80 py-1 text-xs sm:text-sm">
-                          {["Normal", "Dry", "Oily", "Combination", "Sensitive", "Other"].map(
+                        <div className="absolute right-0 top-full mt-1.5 z-30 w-48 rounded-xl bg-white/95 backdrop-blur-md shadow-xl border border-stone-200/80 py-1 text-xs sm:text-sm max-h-48 overflow-y-auto">
+                          {["Normal", "Dry", "Oily", "Combination", "Sensitive", "Acne-Prone", "Mature", "Other"].map(
                             (type) => (
                               <button
                                 key={type}
@@ -415,39 +544,6 @@ export function AuthModal({
                           )}
                         </div>
                       )}
-                    </div>
-                  </div>
-
-                  {/* Birthday */}
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <label className="text-stone-800 text-xs sm:text-sm font-medium w-28 shrink-0">
-                      Birthday
-                    </label>
-                    <div className="grid grid-cols-3 gap-2 w-full">
-                      <input
-                        type="text"
-                        placeholder="Day"
-                        maxLength={2}
-                        value={birthdayDay}
-                        onChange={(e) => setBirthdayDay(e.target.value)}
-                        className="rounded-full bg-white text-stone-900 px-2 py-1.5 text-center text-xs shadow-xs outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-stone-400"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Month"
-                        maxLength={2}
-                        value={birthdayMonth}
-                        onChange={(e) => setBirthdayMonth(e.target.value)}
-                        className="rounded-full bg-white text-stone-900 px-2 py-1.5 text-center text-xs shadow-xs outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-stone-400"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Year"
-                        maxLength={4}
-                        value={birthdayYear}
-                        onChange={(e) => setBirthdayYear(e.target.value)}
-                        className="rounded-full bg-white text-stone-900 px-2 py-1.5 text-center text-xs shadow-xs outline-none focus:ring-1 focus:ring-stone-400 placeholder:text-stone-400"
-                      />
                     </div>
                   </div>
 

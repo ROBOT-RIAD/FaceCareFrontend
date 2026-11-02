@@ -7,10 +7,15 @@ export interface User {
   email: string
   name?: string
   fullName?: string
+  full_name?: string
   contactNumber?: string
+  contact_number?: string
   skinType?: string
+  skin_type?: string
   birthday?: string
+  date_of_birth?: string
   role?: string
+  image?: string | null
   [key: string]: any
 }
 
@@ -18,10 +23,15 @@ export type RegisterPayload =
   | {
       email: string
       password: string
+      full_name?: string
       fullName?: string
+      gender?: string
+      contact_number?: string
       contactNumber?: string
-      skinType?: string
+      date_of_birth?: string
       birthday?: string
+      skin_type?: string
+      skinType?: string
       [key: string]: any
     }
   | FormData
@@ -89,8 +99,15 @@ const isUserObject = (data: any): boolean => {
   return Boolean(
     data &&
       typeof data === "object" &&
-      (data.email || data.fullName || data.name || data.id || data._id || data.username)
+      (data.email || data.fullName || data.full_name || data.name || data.id || data._id || data.username)
   )
+}
+
+const formatUser = (userData: any): User => {
+  return {
+    ...userData,
+    fullName: userData.full_name || userData.fullName || userData.name || userData.email?.split("@")?.[0] || "User",
+  }
 }
 
 const toFormData = (payload: Record<string, any> | FormData): FormData => {
@@ -113,26 +130,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearError = () => setError(null)
 
-  // 1. Refresh Token / Verify Session via HttpOnly cookie
+  // 1. Verify Active Session via HttpOnly Cookie on page load/refresh
   const refreshToken = async (): Promise<boolean> => {
     try {
-      // Try POST first, fallback to GET if needed
-      let res
+      // 1st step: Check profile endpoint directly (browser automatically sends HttpOnly cookie via withCredentials: true)
       try {
-        res = await axiosPublic.post("/api/v1/cookie/refres/")
+        const profileRes = await axiosPublic.get("/api/v1/profile/")
+        const profileData = profileRes?.data?.data || profileRes?.data
+        if (isUserObject(profileData)) {
+          setUser(formatUser(profileData))
+          return true
+        }
       } catch (err: any) {
-        if (err?.response?.status === 405) {
-          res = await axiosPublic.get("/api/v1/cookie/refres/")
-        } else {
+        // If 401 or 403, try refreshing the cookie below
+        if (err?.response?.status !== 401 && err?.response?.status !== 403) {
           throw err
         }
       }
 
-      const potentialUser = res?.data?.user || res?.data?.data || res?.data
-      if (isUserObject(potentialUser)) {
-        setUser(potentialUser)
+      // 2nd step: Try cookie refresh endpoint if profile returned 401
+      let refreshRes
+      try {
+        refreshRes = await axiosPublic.post("/api/v1/cookie/refres/")
+      } catch (err: any) {
+        if (err?.response?.status === 404 || err?.response?.status === 405) {
+          refreshRes = await axiosPublic.post("/api/v1/cookie/refresh/").catch(() => null)
+        }
+      }
+
+      // Check if refresh response returned user
+      const refreshUser = refreshRes?.data?.user || refreshRes?.data?.data || refreshRes?.data
+      if (isUserObject(refreshUser)) {
+        setUser(formatUser(refreshUser))
         return true
       }
+
+      // If cookie was refreshed, retry fetching profile
+      if (refreshRes?.status === 200 || refreshRes?.data?.success) {
+        const retryRes = await axiosPublic.get("/api/v1/profile/")
+        const retryData = retryRes?.data?.data || retryRes?.data
+        if (isUserObject(retryData)) {
+          setUser(formatUser(retryData))
+          return true
+        }
+      }
+
+      setUser(null)
       return false
     } catch {
       setUser(null)
@@ -140,8 +183,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // 2. Initial Auth Check on page load using HttpOnly cookie
+  // 2. Initial Auth Check on page load using HttpOnly Cookie
   useEffect(() => {
+    // Clean any old localStorage token remnants if any existed
+    try {
+      localStorage.removeItem("glowmi_token")
+      localStorage.removeItem("token")
+      localStorage.removeItem("glowmi_user")
+    } catch {
+      // ignore
+    }
+
     const initAuth = async () => {
       setLoading(true)
       try {
@@ -154,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth()
   }, [])
 
-  // 3. Login function (sends as FormData)
+  // 3. Login function (Cookie set by backend via HttpOnly Set-Cookie header)
   const login = async (credentials: LoginPayload) => {
     setLoading(true)
     setError(null)
@@ -170,12 +222,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           "Content-Type": "multipart/form-data",
         },
       })
-      const potentialUser =
+
+      // Check user in login response
+      let potentialUser =
         res?.data?.user ||
         res?.data?.data ||
-        (isUserObject(res?.data) ? res.data : null) ||
-        { email: userEmail }
-      setUser(potentialUser)
+        (isUserObject(res?.data) ? res.data : null)
+
+      // If user details not in login response, fetch profile with the new cookie
+      if (!isUserObject(potentialUser)) {
+        try {
+          const profileRes = await axiosPublic.get("/api/v1/profile/")
+          potentialUser = profileRes?.data?.data || profileRes?.data
+        } catch {
+          potentialUser = { email: userEmail }
+        }
+      }
+
+      setUser(formatUser(potentialUser))
       return res.data
     } catch (err: any) {
       const message = formatErrorMessage(err, "Login failed. Please check your credentials.")
@@ -186,7 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // 4. Register function (sends as FormData)
+  // 4. Register function (Cookie set by backend via HttpOnly Set-Cookie header)
   const register = async (data: RegisterPayload) => {
     setLoading(true)
     setError(null)
@@ -202,15 +266,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           "Content-Type": "multipart/form-data",
         },
       })
-      const potentialUser =
+
+      let potentialUser =
         res?.data?.user ||
         res?.data?.data ||
-        (isUserObject(res?.data) ? res.data : null) ||
-        { email: userEmail, fullName: userFullName }
-      setUser(potentialUser)
+        (isUserObject(res?.data) ? res.data : null)
+
+      if (!isUserObject(potentialUser)) {
+        try {
+          const profileRes = await axiosPublic.get("/api/v1/profile/")
+          potentialUser = profileRes?.data?.data || profileRes?.data
+        } catch {
+          potentialUser = { email: userEmail, fullName: userFullName }
+        }
+      }
+
+      setUser(formatUser(potentialUser))
       return res.data
     } catch (err: any) {
-      const message = formatErrorMessage(err, "Registration failed. Please try again.")
+      const message = formatErrorMessage(err, "Registration failed. Please check your credentials.")
       setError(message)
       throw err
     } finally {
@@ -218,7 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // 5. Logout function (ready for profile page or navbar)
+  // 5. Logout function (Cookie cleared by backend via HttpOnly Set-Cookie header)
   const logout = async () => {
     setLoading(true)
     setError(null)

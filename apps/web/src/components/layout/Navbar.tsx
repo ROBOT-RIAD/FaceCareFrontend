@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link, NavLink, useLocation } from "react-router"
+import { Link, NavLink, useLocation, useNavigate } from "react-router"
 import {
   Menu,
   Moon,
@@ -14,6 +14,7 @@ import {
   Sparkles,
   MessageSquare,
   LogOut,
+  Bell,
 } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
@@ -21,6 +22,7 @@ import { useTheme } from "@/components/theme-provider.tsx"
 import companyLogo from "@/assets/home/navbar/company_logo.png"
 import { AuthModal } from "@/components/modules/auth/AuthModal.tsx"
 import { useAuth } from "@/hooke/useAuth"
+import { useShop } from "@/hooke/useShop"
 
 interface NavItem {
   label: string
@@ -60,10 +62,11 @@ const categories = [
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
   const [isScrolled, setIsScrolled] = React.useState(false)
-  const [cartCount] = React.useState(2)
-  const [wishlistCount] = React.useState(1)
+  const { totalCartItems, totalFavorites } = useShop()
   const [isAuthModalOpen, setIsAuthModalOpen] = React.useState(false)
   const [authModalMode, setAuthModalMode] = React.useState<"signup" | "login">("login")
+  const [isNotificationOpen, setIsNotificationOpen] = React.useState(false)
+  const notificationRef = React.useRef<HTMLDivElement>(null)
 
   const openAuthModal = (mode: "signup" | "login" = "login") => {
     setAuthModalMode(mode)
@@ -72,7 +75,27 @@ export function Navbar() {
 
   const { theme, setTheme } = useTheme()
   const location = useLocation()
+  const navigate = useNavigate()
   const { user, logout } = useAuth()
+
+  const handleLogout = async () => {
+    await logout()
+    navigate("/")
+  }
+
+  // Close notification popover on outside click
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(e.target as Node)
+      ) {
+        setIsNotificationOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   // Track scroll position to add elevated style
   React.useEffect(() => {
@@ -86,6 +109,7 @@ export function Navbar() {
   // Close mobile menu when navigating
   React.useEffect(() => {
     setIsMobileMenuOpen(false)
+    setIsNotificationOpen(false)
   }, [location.pathname])
 
   // Toggle theme helper
@@ -214,25 +238,8 @@ export function Navbar() {
             })}
           </div>
 
-          {/* Right: Actions (Wishlist, Theme, Cart, User) */}
+          {/* Right: Actions (Theme, Favorite, Cart, Join Us / User) */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Wishlist Button */}
-            <Link to="/wishlist" className="hidden sm:inline-flex">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative rounded-full text-muted-foreground hover:text-foreground"
-                aria-label="Wishlist"
-              >
-                <Heart className="size-5" />
-                {wishlistCount > 0 && (
-                  <span className="absolute top-1 right-1 flex size-3.5 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
-                    {wishlistCount}
-                  </span>
-                )}
-              </Button>
-            </Link>
-
             {/* Theme Toggle (Sun / Moon) */}
             <Button
               variant="ghost"
@@ -245,7 +252,89 @@ export function Navbar() {
               <Moon className="absolute size-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </Button>
 
-            {/* User Account / Profile / Join Us */}
+            {/* Wishlist / Favorite Button */}
+            <Link to="/favorite" className="inline-flex">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative rounded-full text-muted-foreground hover:text-foreground"
+                aria-label="Wishlist"
+              >
+                <Heart className="size-5" />
+                {totalFavorites > 0 && (
+                  <span className="absolute top-1 right-1 flex size-3.5 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground animate-in zoom-in-50">
+                    {totalFavorites}
+                  </span>
+                )}
+              </Button>
+            </Link>
+
+            {/* Shopping Cart Button */}
+            <Link to="/cart">
+              <Button
+                variant="outline"
+                size="sm"
+                className="relative gap-1.5 rounded-full px-3 shadow-xs transition-transform active:scale-95"
+              >
+                <ShoppingBag className="size-4" />
+                <span className="hidden sm:inline font-medium">Cart</span>
+                <span className="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground animate-in zoom-in-50">
+                  {totalCartItems}
+                </span>
+              </Button>
+            </Link>
+
+            {/* Notification Icon (Only visible when user is logged in) */}
+            {user && (
+              <div className="relative" ref={notificationRef}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                  className="relative rounded-full text-muted-foreground hover:text-foreground cursor-pointer"
+                  aria-label="Notifications"
+                  title="Notifications"
+                >
+                  <Bell className="size-5" />
+                  <span className="absolute top-1.5 right-1.5 flex size-2 rounded-full bg-primary ring-2 ring-background animate-pulse" />
+                </Button>
+
+                {/* Notification Dropdown Panel */}
+                {isNotificationOpen && (
+                  <div className="absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl bg-card border border-border shadow-xl z-50 p-3 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-border/70 px-1">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Notifications
+                      </span>
+                      <span className="text-[10px] text-primary hover:underline cursor-pointer">
+                        Mark all as read
+                      </span>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className="p-2.5 rounded-xl bg-muted/60 hover:bg-muted transition-colors cursor-pointer">
+                        <div className="flex items-center justify-between">
+                          <p className="font-semibold text-foreground">Welcome to Glowmi!</p>
+                          <span className="size-1.5 rounded-full bg-primary" />
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                          Your skincare journey begins today. Check out our AI Skin Intelligence tool!
+                        </p>
+                        <span className="text-[9px] text-muted-foreground/75 mt-1 block">Just now</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-muted/30 hover:bg-muted transition-colors cursor-pointer">
+                        <p className="font-semibold text-foreground">Special Offer • 15% OFF</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                          Use code <strong className="text-foreground">GLOW15</strong> at checkout for 15% discount.
+                        </p>
+                        <span className="text-[9px] text-muted-foreground/75 mt-1 block">1 hour ago</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* User Account / Profile / Join Us (Extreme Right) */}
             {user ? (
               <div className="flex items-center gap-2">
                 <Link
@@ -262,8 +351,8 @@ export function Navbar() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={logout}
-                  className="rounded-full text-muted-foreground hover:text-destructive size-8"
+                  onClick={handleLogout}
+                  className="rounded-full text-muted-foreground hover:text-destructive size-8 cursor-pointer"
                   title="Logout"
                   aria-label="Logout"
                 >
@@ -271,41 +360,14 @@ export function Navbar() {
                 </Button>
               </div>
             ) : (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => openAuthModal("login")}
-                  className="rounded-full text-muted-foreground hover:text-foreground cursor-pointer"
-                  aria-label="Account"
-                >
-                  <User className="size-5" />
-                </Button>
-
-                <Button
-                  size="sm"
-                  onClick={() => openAuthModal("login")}
-                  className="rounded-full text-xs font-semibold px-4 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs transition-transform active:scale-95 cursor-pointer"
-                >
-                  Join Us
-                </Button>
-              </>
-            )}
-
-            {/* Shopping Cart Button */}
-            <Link to="/cart">
               <Button
-                variant="outline"
                 size="sm"
-                className="relative gap-1.5 rounded-full px-3 shadow-xs transition-transform active:scale-95"
+                onClick={() => openAuthModal("login")}
+                className="rounded-full text-xs font-semibold px-4 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs transition-transform active:scale-95 cursor-pointer"
               >
-                <ShoppingBag className="size-4" />
-                <span className="hidden sm:inline font-medium">Cart</span>
-                <span className="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                  {cartCount}
-                </span>
+                Join Us
               </Button>
-            </Link>
+            )}
           </div>
         </div>
       </nav>
@@ -413,12 +475,19 @@ export function Navbar() {
                         </span>
                       </div>
                     </div>
+                    <div className="flex items-center justify-between py-1.5 px-2.5 bg-background/60 rounded-lg text-xs text-muted-foreground border border-border/40">
+                      <span className="flex items-center gap-1.5">
+                        <Bell className="size-3.5 text-primary" />
+                        <span>Notifications</span>
+                      </span>
+                      <span className="size-2 rounded-full bg-primary animate-pulse" />
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
                         setIsMobileMenuOpen(false)
-                        logout()
+                        handleLogout()
                       }}
                       className="w-full text-destructive hover:text-destructive gap-1.5 text-xs"
                     >
@@ -451,16 +520,28 @@ export function Navbar() {
                     </Button>
                   </>
                 )}
-                <Link
-                  to="/cart"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="w-full"
-                >
-                  <Button variant="outline" className="w-full rounded-xl gap-2">
-                    <ShoppingBag className="size-4" />
-                    Cart ({cartCount})
-                  </Button>
-                </Link>
+                <div className="grid grid-cols-2 gap-2">
+                  <Link
+                    to="/favorite"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="w-full"
+                  >
+                    <Button variant="outline" className="w-full rounded-xl gap-2">
+                      <Heart className="size-4" />
+                      Favorites ({totalFavorites})
+                    </Button>
+                  </Link>
+                  <Link
+                    to="/cart"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="w-full"
+                  >
+                    <Button variant="outline" className="w-full rounded-xl gap-2">
+                      <ShoppingBag className="size-4" />
+                      Cart ({totalCartItems})
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
