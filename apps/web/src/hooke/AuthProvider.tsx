@@ -133,48 +133,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 1. Verify Active Session via HttpOnly Cookie on page load/refresh
   const refreshToken = async (): Promise<boolean> => {
     try {
-      // 1st step: Check profile endpoint directly (browser automatically sends HttpOnly cookie via withCredentials: true)
-      try {
-        const profileRes = await axiosPublic.get("/api/v1/profile/")
-        const profileData = profileRes?.data?.data || profileRes?.data
-        if (isUserObject(profileData)) {
-          setUser(formatUser(profileData))
-          return true
-        }
-      } catch (err: any) {
-        // If 401 or 403, try refreshing the cookie below
-        if (err?.response?.status !== 401 && err?.response?.status !== 403) {
-          throw err
-        }
-      }
-
-      // 2nd step: Try cookie refresh endpoint if profile returned 401
-      let refreshRes
-      try {
-        refreshRes = await axiosPublic.post("/api/v1/cookie/refres/")
-      } catch (err: any) {
-        if (err?.response?.status === 404 || err?.response?.status === 405) {
-          refreshRes = await axiosPublic.post("/api/v1/cookie/refresh/").catch(() => null)
-        }
-      }
-
-      // Check if refresh response returned user
-      const refreshUser = refreshRes?.data?.user || refreshRes?.data?.data || refreshRes?.data
-      if (isUserObject(refreshUser)) {
-        setUser(formatUser(refreshUser))
+      // The Axios interceptor will automatically try /api/v1/cookie/refres/
+      // if profile returns 401, so we only need one call here.
+      const profileRes = await axiosPublic.get("/api/v1/profile/")
+      const profileData = profileRes?.data?.data || profileRes?.data
+      if (isUserObject(profileData)) {
+        setUser(formatUser(profileData))
         return true
       }
-
-      // If cookie was refreshed, retry fetching profile
-      if (refreshRes?.status === 200 || refreshRes?.data?.success) {
-        const retryRes = await axiosPublic.get("/api/v1/profile/")
-        const retryData = retryRes?.data?.data || retryRes?.data
-        if (isUserObject(retryData)) {
-          setUser(formatUser(retryData))
-          return true
-        }
-      }
-
       setUser(null)
       return false
     } catch {

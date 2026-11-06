@@ -33,7 +33,7 @@ import { Button } from "@workspace/ui/components/button"
 import { useProfile, type UserProfile } from "@/hooke/useProfile"
 import { useAuth } from "@/hooke/useAuth"
 import { useUserData } from "@/hooke/useUserData"
-import { useShop } from "@/hooke/ShopContext"
+import { useShop, type Product } from "@/hooke/ShopContext"
 import { useOrders } from "@/hooke/useOrders"
 import {
     useSavedRoutines,
@@ -75,7 +75,7 @@ export default function ProfilePage() {
 
     // Fetch user statistics (/api/v1/userdata/)
     const { data: userStats, isLoading: isStatsLoading } = useUserData()
-    const { totalCartItems } = useShop()
+    const { totalCartItems, addToCart, toggleFavorite, isFavorite } = useShop()
 
     // Retrieve cart items count from localStorage or ShopContext
     const cartProductCount = (() => {
@@ -165,23 +165,67 @@ export default function ProfilePage() {
 
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [headerOffset, setHeaderOffset] = useState(110)
+    const [justAddedCartId, setJustAddedCartId] = useState<number | null>(null)
+    const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+    const showToast = (msg: string) => {
+        setToastMessage(msg)
+        setTimeout(() => setToastMessage(null), 3200)
+    }
+
+    // Helper: Convert RoutineProduct to Shop Product
+    const toShopProduct = (prod: RoutineProduct): Product => ({
+        id: prod.id,
+        title: prod.title,
+        sub_title: prod.sub_title,
+        description: prod.description,
+        price: String(prod.price || "0.00"),
+        discount: prod.discount || "0.00",
+        image: prod.image || "",
+        stock: prod.stock ?? 20,
+        reserved_stock: prod.reserved_stock ?? 0,
+        is_available: prod.is_available ?? true,
+        skin_type: prod.skin_type,
+        key_benefits: prod.key_benefits,
+        key_ingredients: prod.key_ingredients,
+        how_to_use: prod.how_to_use,
+        size: prod.size,
+        sku: prod.sku,
+        category: typeof prod.category === "object" ? prod.category?.id : prod.category,
+        category_name: typeof prod.category === "object" ? prod.category?.name : undefined,
+    })
+
+    const handleAddToCart = (prod: RoutineProduct) => {
+        const shopItem = toShopProduct(prod)
+        addToCart(shopItem, 1)
+        setJustAddedCartId(prod.id)
+        setTimeout(() => setJustAddedCartId(null), 2000)
+        showToast(`"${prod.title}" added to cart!`)
+    }
+
+    const handleToggleFavorite = (prod: RoutineProduct) => {
+        const shopItem = toShopProduct(prod)
+        const currentlyFav = isFavorite(prod.id)
+        toggleFavorite(shopItem)
+        showToast(currentlyFav ? `"${prod.title}" removed from favorites` : `"${prod.title}" added to favorites!`)
+    }
 
     useEffect(() => {
         setMounted(true)
     }, [])
 
-    // Calculate exact 10px gap below the navbar
+    // Calculate exact gap below the navbar (for Edit Profile & Routine Details modals)
     useEffect(() => {
         const updateOffset = () => {
             const header = document.querySelector("header")
             if (header) {
                 const rect = header.getBoundingClientRect()
-                // rect.bottom is the bottom edge of the navbar; add 10px gap
-                setHeaderOffset(Math.round(rect.bottom + 10))
+                // rect.bottom is the bottom edge of the navbar; add 12px gap
+                setHeaderOffset(Math.round(rect.bottom + 12))
             }
         }
 
-        if (isEditModalOpen) {
+        if (isEditModalOpen || Boolean(viewingRoutineDetail)) {
             updateOffset()
             window.addEventListener("resize", updateOffset)
             window.addEventListener("scroll", updateOffset)
@@ -190,7 +234,7 @@ export default function ProfilePage() {
                 window.removeEventListener("scroll", updateOffset)
             }
         }
-    }, [isEditModalOpen])
+    }, [isEditModalOpen, viewingRoutineDetail])
 
     // Sync form state when profile data is available or modal opens
     useEffect(() => {
@@ -207,13 +251,18 @@ export default function ProfilePage() {
     // Handle ESC key press to close modal
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && isEditModalOpen) {
-                setIsEditModalOpen(false)
+            if (e.key === "Escape") {
+                if (viewingRoutineDetail) {
+                    setViewingRoutineDetail(null)
+                }
+                if (isEditModalOpen) {
+                    setIsEditModalOpen(false)
+                }
             }
         }
         window.addEventListener("keydown", handleKeyDown)
         return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [isEditModalOpen])
+    }, [isEditModalOpen, viewingRoutineDetail])
 
     // Clear success notification after 4 seconds
     useEffect(() => {
@@ -321,6 +370,14 @@ export default function ProfilePage() {
 
     return (
         <div className="relative z-0 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-8 pb-12">
+            {/* Floating Toast Notification */}
+            {toastMessage && (
+                <div className="fixed bottom-6 right-6 z-[130] flex items-center gap-2.5 px-4 py-3 bg-[#2b2e32] text-white rounded-xl shadow-2xl border border-stone-700 text-xs sm:text-sm font-medium animate-in fade-in slide-in-from-bottom-4">
+                    <CheckCircle2 className="size-4 text-emerald-400 shrink-0" />
+                    <span>{toastMessage}</span>
+                </div>
+            )}
+
             {/* Success Alert Banner */}
             {successMessage && (
                 <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-medium text-emerald-600 dark:text-emerald-400 shadow-sm animate-in fade-in slide-in-from-top-2">
@@ -1446,15 +1503,17 @@ export default function ProfilePage() {
           ========================================================================= */}
             {viewingRoutineDetail && mounted && createPortal(
                 <div
-                    className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 pt-16 sm:pt-20 pb-6 bg-black/50 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150"
+                    className="fixed inset-0 z-[95] flex items-start justify-center px-3 sm:px-6 pb-6 bg-black/25 dark:bg-black/50 backdrop-blur-[1px] animate-in fade-in duration-150 overflow-y-auto"
+                    style={{ paddingTop: `${headerOffset}px` }}
                     onClick={() => setViewingRoutineDetail(null)}
                 >
                     <div
-                        className="relative w-full max-w-4xl bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 rounded-3xl shadow-2xl border border-stone-200/90 dark:border-stone-800 max-h-[calc(100vh-4.5rem)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+                        className="relative w-full max-w-4xl bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 rounded-3xl shadow-2xl border border-stone-200/90 dark:border-stone-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+                        style={{ maxHeight: `calc(100vh - ${headerOffset + 24}px)` }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header */}
-                        <div className="p-5 sm:p-6 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-stone-50/80 dark:bg-stone-800/40">
+                        <div className="p-4 sm:p-6 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-stone-50/90 dark:bg-stone-800/60 shrink-0">
                             <div className="flex items-center gap-3">
                                 <div className="size-10 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
                                     <Heart className="size-5" />
@@ -1498,7 +1557,7 @@ export default function ProfilePage() {
                             const precautions: string[] = detailRoutineData.precautions || []
 
                             return (
-                                <div className="overflow-y-auto p-5 sm:p-7 space-y-7">
+                                <div className="overflow-y-auto flex-1 min-h-0 p-5 sm:p-7 space-y-7 overscroll-contain">
                                     {/* Morning Protocol */}
                                     <div className="space-y-4">
                                         <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-serif font-medium text-base sm:text-lg pb-1 border-b border-amber-200/60 dark:border-amber-900/40">
@@ -1512,42 +1571,90 @@ export default function ProfilePage() {
                                         )}
                                         {morningProducts.length > 0 && (
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                                                {morningProducts.map((prod: RoutineProduct) => (
-                                                    <div
-                                                        key={prod.id}
-                                                        className="p-3.5 rounded-2xl bg-[#fafafa] dark:bg-stone-800/60 border border-stone-200/70 dark:border-stone-800 flex gap-3"
-                                                    >
-                                                        {prod.image ? (
-                                                            <img
-                                                                src={prod.image}
-                                                                alt={prod.title}
-                                                                className="size-16 rounded-xl object-contain bg-white dark:bg-stone-900 p-1.5 border border-stone-200/70 dark:border-stone-800 shrink-0"
-                                                            />
-                                                        ) : (
-                                                            <div className="size-16 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center shrink-0 text-stone-400">
-                                                                <Package className="size-6" />
+                                                {morningProducts.map((prod: RoutineProduct) => {
+                                                    const inFav = isFavorite(prod.id)
+                                                    const inStock = prod.is_available !== false && (prod.stock ?? 1) > 0
+                                                    return (
+                                                        <div
+                                                            key={prod.id}
+                                                            className="p-3.5 rounded-2xl bg-[#fafafa] dark:bg-stone-800/60 border border-stone-200/70 dark:border-stone-800 flex flex-col justify-between hover:border-stone-300 dark:hover:border-stone-700 transition-all gap-3 group"
+                                                        >
+                                                            <div className="flex gap-3">
+                                                                {prod.image ? (
+                                                                    <img
+                                                                        src={prod.image}
+                                                                        alt={prod.title}
+                                                                        className="size-16 rounded-xl object-contain bg-white dark:bg-stone-900 p-1.5 border border-stone-200/70 dark:border-stone-800 shrink-0"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="size-16 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center shrink-0 text-stone-400">
+                                                                        <Package className="size-6" />
+                                                                    </div>
+                                                                )}
+                                                                <div className="min-w-0 flex-1 space-y-1">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-stone-200/80 dark:bg-stone-700 text-stone-700 dark:text-stone-300">
+                                                                            {prod.category?.name || "Skincare"}
+                                                                        </span>
+                                                                        <span className="text-xs font-bold text-stone-900 dark:text-stone-100">
+                                                                            ${Number(prod.price || 0).toFixed(2)}
+                                                                        </span>
+                                                                    </div>
+                                                                    <h4 className="text-xs sm:text-sm font-semibold text-stone-900 dark:text-stone-100 line-clamp-1">
+                                                                        {prod.title}
+                                                                    </h4>
+                                                                    {prod.how_to_use && (
+                                                                        <p className="text-[10px] text-stone-500 line-clamp-2">
+                                                                            <strong className="text-stone-700 dark:text-stone-300">How to use:</strong> {prod.how_to_use}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                        )}
-                                                        <div className="min-w-0 flex-1 space-y-1">
-                                                            <div className="flex items-center justify-between gap-2">
-                                                                <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-stone-200/80 dark:bg-stone-700 text-stone-700 dark:text-stone-300">
-                                                                    {prod.category?.name || "Skincare"}
-                                                                </span>
-                                                                <span className="text-xs font-bold text-stone-900 dark:text-stone-100">
-                                                                    ${Number(prod.price || 0).toFixed(2)}
-                                                                </span>
+
+                                                            {/* Action Buttons: Favorite & Add to Cart */}
+                                                            <div className="flex items-center gap-2 pt-2 border-t border-stone-200/60 dark:border-stone-700/60">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleToggleFavorite(prod)}
+                                                                    className={`size-8 rounded-lg flex items-center justify-center border transition-all cursor-pointer active:scale-95 shrink-0 ${
+                                                                        inFav
+                                                                            ? "bg-rose-50 border-rose-200 text-rose-500 dark:bg-rose-950/40 dark:border-rose-900"
+                                                                            : "bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-400 hover:text-rose-500 hover:border-rose-200"
+                                                                    }`}
+                                                                    title={inFav ? "Remove from favorites" : "Add to favorites"}
+                                                                    aria-label="Toggle Favorite"
+                                                                >
+                                                                    <Heart
+                                                                        className={`size-4 ${inFav ? "fill-rose-500 text-rose-500" : ""}`}
+                                                                    />
+                                                                </button>
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleAddToCart(prod)}
+                                                                    disabled={!inStock}
+                                                                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer ${
+                                                                        justAddedCartId === prod.id
+                                                                            ? "bg-emerald-600 text-white"
+                                                                            : "bg-[#2b2e32] hover:bg-[#1a1c1e] text-white dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white"
+                                                                    }`}
+                                                                >
+                                                                    {justAddedCartId === prod.id ? (
+                                                                        <>
+                                                                            <CheckCircle2 className="size-3.5" />
+                                                                            <span>Added to Cart</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <ShoppingBag className="size-3.5" />
+                                                                            <span>{inStock ? "Add to Cart" : "Out of Stock"}</span>
+                                                                        </>
+                                                                    )}
+                                                                </button>
                                                             </div>
-                                                            <h4 className="text-xs sm:text-sm font-semibold text-stone-900 dark:text-stone-100 line-clamp-1">
-                                                                {prod.title}
-                                                            </h4>
-                                                            {prod.how_to_use && (
-                                                                <p className="text-[10px] text-stone-500 line-clamp-2">
-                                                                    <strong className="text-stone-700 dark:text-stone-300">How to use:</strong> {prod.how_to_use}
-                                                                </p>
-                                                            )}
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    )
+                                                })}
                                             </div>
                                         )}
                                     </div>
@@ -1565,42 +1672,95 @@ export default function ProfilePage() {
                                         )}
                                         {nightProducts.length > 0 && (
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                                                {nightProducts.map((prod: RoutineProduct) => (
-                                                    <div
-                                                        key={prod.id}
-                                                        className="p-3.5 rounded-2xl bg-[#fafafa] dark:bg-stone-800/60 border border-stone-200/70 dark:border-stone-800 flex gap-3"
-                                                    >
-                                                        {prod.image ? (
-                                                            <img
-                                                                src={prod.image}
-                                                                alt={prod.title}
-                                                                className="size-16 rounded-xl object-contain bg-white dark:bg-stone-900 p-1.5 border border-stone-200/70 dark:border-stone-800 shrink-0"
-                                                            />
-                                                        ) : (
-                                                            <div className="size-16 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center shrink-0 text-stone-400">
-                                                                <Package className="size-6" />
+                                                {nightProducts.map((prod: RoutineProduct) => {
+                                                    const inFav = isFavorite(prod.id)
+                                                    const inStock = prod.is_available !== false && (prod.stock ?? 1) > 0
+                                                    return (
+                                                        <div
+                                                            key={prod.id}
+                                                            className="p-3.5 rounded-2xl bg-[#fafafa] dark:bg-stone-800/60 border border-stone-200/70 dark:border-stone-800 flex flex-col justify-between hover:border-stone-300 dark:hover:border-stone-700 transition-all gap-3 group"
+                                                        >
+                                                            <div className="flex gap-3">
+                                                                {prod.image ? (
+                                                                    <img
+                                                                        src={prod.image}
+                                                                        alt={prod.title}
+                                                                        className="size-16 rounded-xl object-contain bg-white dark:bg-stone-900 p-1.5 border border-stone-200/70 dark:border-stone-800 shrink-0"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="size-16 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center shrink-0 text-stone-400">
+                                                                        <Package className="size-6" />
+                                                                    </div>
+                                                                )}
+                                                                <div className="min-w-0 flex-1 space-y-1">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-stone-200/80 dark:bg-stone-700 text-stone-700 dark:text-stone-300">
+                                                                            {prod.category?.name || "Skincare"}
+                                                                        </span>
+                                                                        <span className="text-xs font-bold text-stone-900 dark:text-stone-100">
+                                                                            ${Number(prod.price || 0).toFixed(2)}
+                                                                        </span>
+                                                                    </div>
+                                                                    <h4 className="text-xs sm:text-sm font-semibold text-stone-900 dark:text-stone-100 line-clamp-1">
+                                                                        {prod.title}
+                                                                    </h4>
+                                                                    {prod.sub_title && (
+                                                                        <p className="text-[11px] text-stone-500 line-clamp-1">
+                                                                            {prod.sub_title}
+                                                                        </p>
+                                                                    )}
+                                                                    {prod.how_to_use && (
+                                                                        <p className="text-[10px] text-stone-500 line-clamp-2">
+                                                                            <strong className="text-stone-700 dark:text-stone-300">How to use:</strong> {prod.how_to_use}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                        )}
-                                                        <div className="min-w-0 flex-1 space-y-1">
-                                                            <div className="flex items-center justify-between gap-2">
-                                                                <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-stone-200/80 dark:bg-stone-700 text-stone-700 dark:text-stone-300">
-                                                                    {prod.category?.name || "Skincare"}
-                                                                </span>
-                                                                <span className="text-xs font-bold text-stone-900 dark:text-stone-100">
-                                                                    ${Number(prod.price || 0).toFixed(2)}
-                                                                </span>
+
+                                                            {/* Action Buttons: Favorite & Add to Cart */}
+                                                            <div className="flex items-center gap-2 pt-2 border-t border-stone-200/60 dark:border-stone-700/60">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleToggleFavorite(prod)}
+                                                                    className={`size-8 rounded-lg flex items-center justify-center border transition-all cursor-pointer active:scale-95 shrink-0 ${
+                                                                        inFav
+                                                                            ? "bg-rose-50 border-rose-200 text-rose-500 dark:bg-rose-950/40 dark:border-rose-900"
+                                                                            : "bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-400 hover:text-rose-500 hover:border-rose-200"
+                                                                    }`}
+                                                                    title={inFav ? "Remove from favorites" : "Add to favorites"}
+                                                                    aria-label="Toggle Favorite"
+                                                                >
+                                                                    <Heart
+                                                                        className={`size-4 ${inFav ? "fill-rose-500 text-rose-500" : ""}`}
+                                                                    />
+                                                                </button>
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleAddToCart(prod)}
+                                                                    disabled={!inStock}
+                                                                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer ${
+                                                                        justAddedCartId === prod.id
+                                                                            ? "bg-emerald-600 text-white"
+                                                                            : "bg-[#2b2e32] hover:bg-[#1a1c1e] text-white dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white"
+                                                                    }`}
+                                                                >
+                                                                    {justAddedCartId === prod.id ? (
+                                                                        <>
+                                                                            <CheckCircle2 className="size-3.5" />
+                                                                            <span>Added to Cart</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <ShoppingBag className="size-3.5" />
+                                                                            <span>{inStock ? "Add to Cart" : "Out of Stock"}</span>
+                                                                        </>
+                                                                    )}
+                                                                </button>
                                                             </div>
-                                                            <h4 className="text-xs sm:text-sm font-semibold text-stone-900 dark:text-stone-100 line-clamp-1">
-                                                                {prod.title}
-                                                            </h4>
-                                                            {prod.how_to_use && (
-                                                                <p className="text-[10px] text-stone-500 line-clamp-2">
-                                                                    <strong className="text-stone-700 dark:text-stone-300">How to use:</strong> {prod.how_to_use}
-                                                                </p>
-                                                            )}
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    )
+                                                })}
                                             </div>
                                         )}
                                     </div>
@@ -1624,7 +1784,7 @@ export default function ProfilePage() {
                         })()}
 
                         {/* Footer */}
-                        <div className="p-4 bg-stone-50 dark:bg-stone-800/80 border-t border-stone-200 dark:border-stone-800 flex justify-end">
+                        <div className="p-4 bg-stone-50/90 dark:bg-stone-800/80 border-t border-stone-200 dark:border-stone-800 flex justify-end shrink-0">
                             <Button
                                 type="button"
                                 variant="outline"

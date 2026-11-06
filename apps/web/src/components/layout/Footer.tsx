@@ -1,4 +1,5 @@
 import { Link } from "react-router"
+import companyLogo from "@/assets/home/navbar/company_logo.png"
 
 interface FooterProps {
   email?: string
@@ -62,12 +63,19 @@ export function Footer({
             </a>
           </div>
 
-          {/* Center: Botanical Flower Knot Logo & Tagline */}
+          {/* Center: Company Logo & Tagline */}
           <div className="flex flex-col items-center text-center">
-            {/* Floral Insignia */}
-            <div className="mb-3 text-white/90 transition-transform duration-300 hover:scale-105">
-              <FloralEmblem className="size-14 text-white" />
-            </div>
+            {/* Company Logo */}
+            <Link
+              to="/"
+              className="mb-3 block transition-transform duration-300 hover:scale-105"
+            >
+              <img
+                src={companyLogo}
+                alt="Glowmi Logo"
+                className="h-12 sm:h-14 w-auto object-contain brightness-0 invert opacity-95 transition-all"
+              />
+            </Link>
 
             {/* Tagline */}
             <p className="text-lg md:text-xl font-normal tracking-wide text-white/95">
@@ -188,47 +196,6 @@ export function Footer({
         </div>
       </div>
     </footer>
-  )
-}
-
-/**
- * Botanical geometric floral knot insignia inspired by the reference image
- */
-function FloralEmblem({ className = "size-14 text-white" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 100 100"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <g transform="translate(50, 50)">
-        {/* 4 Interwoven Petal Loops */}
-        {[0, 90, 180, 270].map((rot) => (
-          <g key={rot} transform={`rotate(${rot})`}>
-            {/* Main Outer Teardrop Loop */}
-            <path
-              d="M0,-6 C-9,-18 -18,-30 -10,-40 C-2,-48 14,-42 16,-30 C18,-18 7,-10 0,-6"
-              fill="none"
-            />
-            {/* Interlacing Cross Loop */}
-            <path
-              d="M-6,0 C-18,-9 -30,-18 -40,-10 C-48,-2 -42,14 -30,16 C-18,18 -10,7 -6,0"
-              fill="none"
-            />
-            {/* Inner Bridge Curve */}
-            <path
-              d="M-10,-10 C-4,-17 4,-17 10,-10 C17,-4 17,4 10,10"
-              fill="none"
-              strokeWidth="2"
-            />
-          </g>
-        ))}
-      </g>
-    </svg>
   )
 }
 

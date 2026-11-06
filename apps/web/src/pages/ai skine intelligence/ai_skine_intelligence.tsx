@@ -1,4 +1,5 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { Link, useNavigate } from "react-router"
 import { useAuth } from "@/hooke/useAuth"
 import { useShop, type Product } from "@/hooke/ShopContext"
@@ -28,6 +29,7 @@ import {
   Package,
   Heart,
   ShoppingBag,
+  AlertCircle,
 } from "lucide-react"
 
 export default function AISkinIntelligencePage() {
@@ -36,7 +38,7 @@ export default function AISkinIntelligencePage() {
   const { addToCart, toggleFavorite, isFavorite } = useShop()
 
   // Form State
-  const [skinType, setSkinType] = useState<string>("Dry")
+  const [skinType, setSkinType] = useState<string>("")
   const [age, setAge] = useState<string>("")
   const [selectedConcerns, setSelectedConcerns] = useState<string[]>([
     "Dark Spots",
@@ -46,14 +48,59 @@ export default function AISkinIntelligencePage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const resultRef = useRef<HTMLDivElement>(null)
+
+  // Validation State
+  const [errors, setErrors] = useState<{
+    skinType?: string
+    age?: string
+    faceImage?: string
+  }>({})
 
   // Auth, Modal & Feedback State
+  const [mounted, setMounted] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [generatedRoutine, setGeneratedRoutine] = useState<SkinIntelligenceRecord | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [notification, setNotification] = useState<string | null>(null)
+  const [headerOffset, setHeaderOffset] = useState(105)
+  const [notification, setNotification] = useState<{ message: string; type?: "success" | "error" } | null>(null)
   const [justAddedCartId, setJustAddedCartId] = useState<number | null>(null)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Calculate exact gap below navbar so the modal opens directly underneath the navbar
+  useEffect(() => {
+    const updateOffset = () => {
+      const header = document.querySelector("header")
+      if (header) {
+        const rect = header.getBoundingClientRect()
+        // rect.bottom is the bottom edge of the sticky navbar; add 12px gap
+        setHeaderOffset(Math.round(rect.bottom + 12))
+      }
+    }
+
+    if (isModalOpen) {
+      updateOffset()
+      window.addEventListener("resize", updateOffset)
+      window.addEventListener("scroll", updateOffset)
+      return () => {
+        window.removeEventListener("resize", updateOffset)
+        window.removeEventListener("scroll", updateOffset)
+      }
+    }
+  }, [isModalOpen])
+
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isModalOpen) {
+        handleCancelModal()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isModalOpen])
 
   // TanStack Query Mutations
   const generateRoutineMutation = useGenerateRoutine()
@@ -87,10 +134,13 @@ export default function AISkinIntelligencePage() {
     const file = e.target.files?.[0]
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
-        showToast("Image size must be under 10MB")
+        showToast("Image size must be under 10MB", "error")
         return
       }
       setPhotoFile(file)
+      if (errors.faceImage) {
+        setErrors((prev) => ({ ...prev, faceImage: undefined }))
+      }
       const reader = new FileReader()
       reader.onloadend = () => {
         setPhotoPreview(reader.result as string)
@@ -99,9 +149,9 @@ export default function AISkinIntelligencePage() {
     }
   }
 
-  const showToast = (msg: string) => {
-    setNotification(msg)
-    setTimeout(() => setNotification(null), 3200)
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setNotification({ message, type })
+    setTimeout(() => setNotification(null), 3500)
   }
 
   // Handle Form Submit
@@ -110,41 +160,67 @@ export default function AISkinIntelligencePage() {
 
     // 1. Unauthorized check: Login is required before analyzing
     if (!user) {
-      showToast("Please login first to analyze your skin.")
+      showToast("Please login first to analyze your skin.", "error")
       setIsAuthModalOpen(true)
       return
     }
 
-    if (!skinType) {
-      showToast("Please choose your skin type.")
+    // 2. Validate mandatory fields: skin_type, age, face_image
+    const newErrors: {
+      skinType?: string
+      age?: string
+      faceImage?: string
+    } = {}
+
+    if (!skinType || !skinType.trim()) {
+      newErrors.skinType = "Please select your skin type."
+    }
+
+    const trimmedAge = age.trim()
+    const numAge = Number(trimmedAge)
+    if (!trimmedAge) {
+      newErrors.age = "Please enter your age."
+    } else if (!/^\d+$/.test(trimmedAge) || isNaN(numAge) || numAge < 10 || numAge > 120) {
+      newErrors.age = "Please enter a valid age between 10 and 120."
+    }
+
+    if (!photoFile) {
+      newErrors.faceImage = "Please upload a clear face photo for AI skin analysis."
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      const firstErrorMessage =
+        newErrors.skinType || newErrors.age || newErrors.faceImage
+      if (firstErrorMessage) {
+        showToast(firstErrorMessage, "error")
+      }
       return
     }
 
+    // Clear previous errors
+    setErrors({})
+
     try {
       const formData = new FormData()
-      formData.append("skin_type", skinType)
-      formData.append("age", age || "")
+      formData.append("skin_type", skinType.trim())
+      formData.append("age", trimmedAge)
       formData.append("skin_concerns", selectedConcerns.join(","))
       selectedConcerns.forEach((c) => formData.append("skin_concerns[]", c))
       formData.append("details", additionalDetails || "")
-      if (photoFile) {
-        formData.append("face_image", photoFile)
-      }
+      formData.append("face_image", photoFile!)
 
       const res = await generateRoutineMutation.mutateAsync(formData)
       if (res && res.data) {
         setGeneratedRoutine(res.data)
         setIsModalOpen(true)
-        setTimeout(() => {
-          resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-        }, 150)
       }
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ||
         err?.message ||
         "Failed to generate skincare routine. Please try again."
-      showToast(msg)
+      showToast(msg, "error")
     }
   }
 
@@ -230,9 +306,19 @@ export default function AISkinIntelligencePage() {
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       {/* Floating Notification */}
       {notification && (
-        <div className="fixed bottom-6 right-6 z-[130] flex items-center gap-2.5 px-4 py-3 bg-[#2b2e32] text-white rounded-xl shadow-2xl border border-stone-700 text-xs sm:text-sm font-medium animate-in fade-in slide-in-from-bottom-4">
-          <Check className="size-4 text-emerald-400 shrink-0" />
-          <span>{notification}</span>
+        <div
+          className={`fixed bottom-6 right-6 z-[130] flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-2xl text-xs sm:text-sm font-medium animate-in fade-in slide-in-from-bottom-4 border ${
+            notification.type === "error"
+              ? "bg-[#2b1e22] text-rose-200 border-rose-800/80"
+              : "bg-[#2b2e32] text-white border-stone-700"
+          }`}
+        >
+          {notification.type === "error" ? (
+            <AlertCircle className="size-4 text-rose-400 shrink-0" />
+          ) : (
+            <Check className="size-4 text-emerald-400 shrink-0" />
+          )}
+          <span>{notification.message}</span>
         </div>
       )}
 
@@ -271,21 +357,32 @@ export default function AISkinIntelligencePage() {
         >
           {/* Question 1: Skin Type */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100 font-medium text-sm sm:text-base">
-              <span className="p-1 rounded bg-stone-200/70 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
-                <Droplets className="size-4" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100 font-medium text-sm sm:text-base">
+                <span className="p-1 rounded bg-stone-200/70 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
+                  <Droplets className="size-4" />
+                </span>
+                <span>What's your skin type?</span>
+                <span className="text-rose-500 font-bold">*</span>
+              </div>
+              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 uppercase tracking-wider">
+                Required
               </span>
-              <span>What's your skin type?</span>
             </div>
 
-            <div className="flex flex-wrap gap-2.5">
+            <div className={`flex flex-wrap gap-2.5 p-1 rounded-xl transition-colors ${errors.skinType ? "ring-1 ring-rose-400/80 bg-rose-50/20" : ""}`}>
               {skinTypes.map((type) => {
                 const isSelected = skinType === type
                 return (
                   <button
                     key={type}
                     type="button"
-                    onClick={() => setSkinType(type)}
+                    onClick={() => {
+                      setSkinType(type)
+                      if (errors.skinType) {
+                        setErrors((prev) => ({ ...prev, skinType: undefined }))
+                      }
+                    }}
                     className={`px-6 py-2 rounded-md text-xs sm:text-sm font-medium transition-all cursor-pointer ${
                       isSelected
                         ? "bg-[#2b2e32] text-white shadow-xs border border-[#2b2e32]"
@@ -297,24 +394,53 @@ export default function AISkinIntelligencePage() {
                 )
               })}
             </div>
+            {errors.skinType && (
+              <p className="text-xs text-rose-500 flex items-center gap-1.5 pt-0.5 animate-in fade-in">
+                <AlertCircle className="size-3.5 shrink-0" />
+                <span>{errors.skinType}</span>
+              </p>
+            )}
           </div>
 
           {/* Question 2: Age */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100 font-medium text-sm sm:text-base">
-              <span className="p-1 rounded bg-stone-200/70 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
-                <Calendar className="size-4" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100 font-medium text-sm sm:text-base">
+                <span className="p-1 rounded bg-stone-200/70 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
+                  <Calendar className="size-4" />
+                </span>
+                <span>What's your age?</span>
+                <span className="text-rose-500 font-bold">*</span>
+              </div>
+              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 uppercase tracking-wider">
+                Required
               </span>
-              <span>What's your age?</span>
             </div>
 
             <input
-              type="text"
+              type="number"
+              min="10"
+              max="120"
               value={age}
-              onChange={(e) => setAge(e.target.value)}
-              placeholder="Type your age here (e.g. 25)"
-              className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-md border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 outline-none focus:ring-1 focus:ring-stone-500 transition-all"
+              onChange={(e) => {
+                setAge(e.target.value)
+                if (errors.age) {
+                  setErrors((prev) => ({ ...prev, age: undefined }))
+                }
+              }}
+              placeholder="Enter your age (e.g. 25)"
+              className={`w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-md border bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 outline-none transition-all ${
+                errors.age
+                  ? "border-rose-400 dark:border-rose-500 focus:ring-1 focus:ring-rose-500 bg-rose-50/10"
+                  : "border-stone-300 dark:border-stone-700 focus:ring-1 focus:ring-stone-500"
+              }`}
             />
+            {errors.age && (
+              <p className="text-xs text-rose-500 flex items-center gap-1.5 pt-0.5 animate-in fade-in">
+                <AlertCircle className="size-3.5 shrink-0" />
+                <span>{errors.age}</span>
+              </p>
+            )}
           </div>
 
           {/* Question 3: Main Skin Concerns */}
@@ -365,13 +491,19 @@ export default function AISkinIntelligencePage() {
             />
           </div>
 
-          {/* Question 5: Upload Photo (Optional) */}
+          {/* Question 5: Upload Face Photo (Required) */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100 font-medium text-sm sm:text-base">
-              <span className="p-1 rounded bg-stone-200/70 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
-                <Camera className="size-4" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100 font-medium text-sm sm:text-base">
+                <span className="p-1 rounded bg-stone-200/70 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
+                  <Camera className="size-4" />
+                </span>
+                <span>Upload Face Photo</span>
+                <span className="text-rose-500 font-bold">*</span>
+              </div>
+              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 uppercase tracking-wider">
+                Required
               </span>
-              <span>Upload Photo (Optional)</span>
             </div>
 
             <input
@@ -392,7 +524,7 @@ export default function AISkinIntelligencePage() {
                   />
                   <div>
                     <span className="text-xs font-semibold text-stone-800 dark:text-stone-200 block">
-                      Photo Uploaded
+                      Face Photo Uploaded
                     </span>
                     <span className="text-[11px] text-stone-400">
                       {photoFile?.name || "Ready for AI skin analysis"}
@@ -404,6 +536,7 @@ export default function AISkinIntelligencePage() {
                   onClick={() => {
                     setPhotoPreview(null)
                     setPhotoFile(null)
+                    if (fileInputRef.current) fileInputRef.current.value = ""
                   }}
                   className="p-1.5 text-stone-400 hover:text-rose-500 transition-colors cursor-pointer"
                   title="Remove photo"
@@ -414,18 +547,34 @@ export default function AISkinIntelligencePage() {
             ) : (
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-8 px-4 rounded-md border border-stone-300 dark:border-stone-700 bg-white/70 dark:bg-stone-800/40 text-center flex flex-col items-center justify-center gap-2 hover:bg-stone-100/60 dark:hover:bg-stone-800/80 transition-colors cursor-pointer group"
+                className={`w-full py-8 px-4 rounded-md border text-center flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer group ${
+                  errors.faceImage
+                    ? "border-rose-400 dark:border-rose-500 bg-rose-50/20 dark:bg-rose-950/20 hover:bg-rose-50/30"
+                    : "border-stone-300 dark:border-stone-700 bg-white/70 dark:bg-stone-800/40 hover:bg-stone-100/60 dark:hover:bg-stone-800/80"
+                }`}
               >
-                <div className="size-10 rounded-full bg-stone-100 dark:bg-stone-700 flex items-center justify-center text-stone-600 dark:text-stone-300 group-hover:scale-110 transition-transform">
+                <div
+                  className={`size-10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform ${
+                    errors.faceImage
+                      ? "bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300"
+                      : "bg-stone-100 dark:bg-stone-700 text-stone-600 dark:text-stone-300"
+                  }`}
+                >
                   <Upload className="size-4" />
                 </div>
                 <span className="text-xs sm:text-sm font-medium text-stone-800 dark:text-stone-200">
-                  Click to upload or drag and drop
+                  Click to upload face photo or drag and drop
                 </span>
                 <span className="text-[11px] text-stone-400">
-                  PNG, JPG up to 10MB
+                  PNG, JPG, or WEBP up to 10MB (Face photo is required for AI routine diagnosis)
                 </span>
               </div>
+            )}
+            {errors.faceImage && (
+              <p className="text-xs text-rose-500 flex items-center gap-1.5 pt-0.5 animate-in fade-in">
+                <AlertCircle className="size-3.5 shrink-0" />
+                <span>{errors.faceImage}</span>
+              </p>
             )}
           </div>
 
@@ -448,30 +597,49 @@ export default function AISkinIntelligencePage() {
                 </>
               )}
             </button>
+
+            {generatedRoutine && !isModalOpen && (
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-stone-100 hover:underline cursor-pointer transition-colors"
+                >
+                  <Sparkles className="size-3.5 text-primary" />
+                  <span>View your latest generated diagnosis routine</span>
+                </button>
+              </div>
+            )}
           </div>
         </form>
       </div>
 
       {/* =========================================================================
-          RESPONSE: PERSONALIZED ROUTINE DIAGNOSIS SECTION
-          (Rendered in-page so Navbar, Page Form Content, and Footer remain fully visible)
+          RESPONSE: PERSONALIZED ROUTINE DIAGNOSIS MODAL (Portal)
+          - Navbar: z-[100] (visible above modal)
+          - Modal Overlay: z-[95] with translucent backdrop (navbar, analyzer page content, and footer visible underneath)
+          - Modal Window: opens right below the navbar (style={{ paddingTop: `${headerOffset}px` }})
           ========================================================================= */}
-      {isModalOpen && generatedRoutine && routineJson ? (
+      {isModalOpen && generatedRoutine && routineJson && mounted && createPortal(
         <div
-          ref={resultRef}
-          id="routine-diagnosis-section"
-          className="mt-12 max-w-4xl mx-auto scroll-mt-24 animate-in fade-in slide-in-from-bottom-6 duration-300"
+          className="fixed inset-0 z-[95] flex items-start justify-center px-3 sm:px-6 pb-6 bg-black/25 dark:bg-black/50 backdrop-blur-[1px] animate-in fade-in duration-200 overflow-y-auto"
+          style={{ paddingTop: `${headerOffset}px` }}
+          onClick={handleCancelModal}
         >
-          <div className="relative w-full bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 rounded-3xl shadow-xl border border-stone-200/90 dark:border-stone-800 overflow-hidden">
+          <div
+            className="relative w-full max-w-4xl bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 rounded-3xl shadow-2xl border border-stone-200/90 dark:border-stone-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+            style={{ maxHeight: `calc(100vh - ${headerOffset + 24}px)` }}
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
-            <div className="p-5 sm:p-6 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-stone-50/80 dark:bg-stone-800/40">
+            <div className="p-4 sm:p-6 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-stone-50/90 dark:bg-stone-800/60 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="size-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                   <Sparkles className="size-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-lg sm:text-xl font-serif font-medium leading-tight">
+                    <h3 className="text-base sm:text-xl font-serif font-medium leading-tight">
                       Personalized Skincare Routine
                     </h3>
                     <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold uppercase tracking-wider">
@@ -496,7 +664,7 @@ export default function AISkinIntelligencePage() {
             </div>
 
             {/* Body */}
-            <div className="p-5 sm:p-7 space-y-7">
+            <div className="overflow-y-auto flex-1 min-h-0 p-5 sm:p-7 space-y-7 overscroll-contain">
               {/* 1. MORNING ROUTINE */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-serif font-medium text-base sm:text-lg pb-1 border-b border-amber-200/60 dark:border-amber-900/40">
@@ -755,8 +923,8 @@ export default function AISkinIntelligencePage() {
               )}
             </div>
 
-            {/* Section Footer */}
-            <div className="p-4 sm:p-5 bg-stone-50 dark:bg-stone-800/80 border-t border-stone-200 dark:border-stone-800 flex flex-wrap items-center justify-between gap-3">
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-5 bg-stone-50/90 dark:bg-stone-800/80 border-t border-stone-200 dark:border-stone-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
               <span className="text-xs text-stone-500 dark:text-stone-400">
                 Save to access this routine in your user profile anytime.
               </span>
@@ -791,8 +959,9 @@ export default function AISkinIntelligencePage() {
               </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        </div>,
+        document.body
+      )}
 
       {/* Auth Modal for Unauthenticated Users */}
       <AuthModal

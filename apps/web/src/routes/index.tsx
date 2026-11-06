@@ -2,6 +2,8 @@ import { App } from "@/App";
 import { createBrowserRouter } from "react-router";
 import Homepage from "@/pages/home/Homepage";
 import AboutPage from "@/pages/about/AboutPage";
+import PrivacyPolicyPage from "@/pages/privacy_policy/PrivacyPolicyPage";
+import TermsPage from "@/pages/terms/TermsPage";
 import ProfilePage from "@/pages/userProfile/profile";
 import CartPage from "@/pages/cart/cart";
 import FavoritePage from "@/pages/favorite/Favorite";
@@ -51,6 +53,22 @@ export const router = createBrowserRouter([
             {
                 Component: AboutPage,
                 path: "about",
+            },
+            {
+                Component: PrivacyPolicyPage,
+                path: "privacy-policy",
+            },
+            {
+                Component: PrivacyPolicyPage,
+                path: "privacy_policy",
+            },
+            {
+                Component: TermsPage,
+                path: "terms",
+            },
+            {
+                Component: TermsPage,
+                path: "terms-and-conditions",
             },
             {
                 Component: ProfilePage,
